@@ -73,8 +73,10 @@ resource "azurerm_virtual_network_peering" "spoketohub" {
   remote_virtual_network_id = azurerm_virtual_network.hubvnet.id
 }
 
+
+#### Test networking container to run network tests and DNS digs to git into Azure networking deeply.
 resource "azurerm_container_group" "Mytestcontainergroup" {
-  name                = "testcontainegroup"
+  name                = "testcontainergroup"
   location            = azurerm_resource_group.Core.location
   ip_address_type     = "Private"
   subnet_ids          = [for subnet in azurerm_virtual_network.spokevnet.subnet : subnet.id if subnet.name == "snet-aci"]
@@ -111,7 +113,7 @@ resource "azurerm_network_interface" "testvmnic" {
   }
 }
 
-
+#### Test VM on spoke workload network to test connectivity to hub and other networks. 
 resource "azurerm_windows_virtual_machine" "testvm" {
   resource_group_name   = azurerm_resource_group.Core.name
   location              = azurerm_resource_group.Core.location
@@ -120,7 +122,44 @@ resource "azurerm_windows_virtual_machine" "testvm" {
   size                  = "Standard_B2ats_v2"
   admin_password        = "Butillaw7970-"
   admin_username        = "jamie"
-  patch_mode = "AutomaticByPlatform"
+  patch_mode            = "AutomaticByPlatform"
+
+  os_disk {
+    caching              = "None"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    offer     = "WindowsServer"
+    publisher = "MicrosoftWindowsServer"
+    sku       = "2022-datacenter-azure-edition-core"
+    version   = "latest"
+  }
+
+}
+
+resource "azurerm_network_interface" "testvmnichub" {
+  name                = "testvmnichub"
+  location            = azurerm_resource_group.Core.location
+  resource_group_name = azurerm_resource_group.Core.name
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = one([for subnet in azurerm_virtual_network.hubvnet.subnet : subnet.id if subnet.name == "snet-shared-services"])
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+
+#### Test VM on hub network to test connectivity from hub to spoke network 
+resource "azurerm_windows_virtual_machine" "testvmhub" {
+  resource_group_name   = azurerm_resource_group.Core.name
+  location              = azurerm_resource_group.Core.location
+  name                  = "testvmhub"
+  network_interface_ids = [azurerm_network_interface.testvmnichub.id]
+  size                  = "Standard_B2ats_v2"
+  admin_password        = "Butillaw7970-"
+  admin_username        = "jamie"
+  patch_mode            = "AutomaticByPlatform"
 
   os_disk {
     caching              = "None"
