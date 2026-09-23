@@ -1,0 +1,1 @@
+This repo will be used to lab out Azure concepts and to get comfortable with Azure principles ahead of Richo next week. Azure seems to be a hot topic at the moment so it is great to get back into it!
