@@ -64,6 +64,7 @@ resource "azurerm_virtual_network_peering" "hubtospoke" {
   resource_group_name       = azurerm_resource_group.Core.name
   virtual_network_name      = azurerm_virtual_network.hubvnet.name
   remote_virtual_network_id = azurerm_virtual_network.spokevnet.id
+  allow_gateway_transit     = true
 }
 
 resource "azurerm_virtual_network_peering" "spoketohub" {
@@ -71,6 +72,10 @@ resource "azurerm_virtual_network_peering" "spoketohub" {
   resource_group_name       = azurerm_resource_group.Core.name
   virtual_network_name      = azurerm_virtual_network.spokevnet.name
   remote_virtual_network_id = azurerm_virtual_network.hubvnet.id
+  use_remote_gateways       = true
+
+
+
 }
 
 
@@ -115,6 +120,7 @@ resource "azurerm_network_interface" "testvmnic" {
 
 #### Test VM on spoke workload network to test connectivity to hub and other networks. 
 resource "azurerm_windows_virtual_machine" "testvm" {
+  count = var.Lab_Shutdown ? 1 : 0
   resource_group_name   = azurerm_resource_group.Core.name
   location              = azurerm_resource_group.Core.location
   name                  = "testvm"
@@ -123,6 +129,7 @@ resource "azurerm_windows_virtual_machine" "testvm" {
   admin_password        = "Butillaw7970-"
   admin_username        = "jamie"
   patch_mode            = "AutomaticByPlatform"
+
 
   os_disk {
     caching              = "None"
@@ -138,6 +145,21 @@ resource "azurerm_windows_virtual_machine" "testvm" {
 
 }
 
+resource "azurerm_virtual_machine_extension" "allow_icmp2" {
+  count = var.Lab_Shutdown ? 1 : 0
+  name                 = "allow-icmp"
+  virtual_machine_id   = azurerm_windows_virtual_machine.testvm[0].id
+  publisher            = "Microsoft.Compute"
+  type                 = "CustomScriptExtension"
+  type_handler_version = "1.10"
+
+  protected_settings = jsonencode({
+    commandToExecute = "powershell.exe -ExecutionPolicy Bypass -Command \"New-NetFirewallRule -DisplayName 'Allow ICMPv4 Echo' -Protocol ICMPv4 -IcmpType 8 -Direction Inbound -Action Allow\""
+  })
+}
+
+
+
 resource "azurerm_network_interface" "testvmnichub" {
   name                = "testvmnichub"
   location            = azurerm_resource_group.Core.location
@@ -152,6 +174,7 @@ resource "azurerm_network_interface" "testvmnichub" {
 
 #### Test VM on hub network to test connectivity from hub to spoke network 
 resource "azurerm_windows_virtual_machine" "testvmhub" {
+  count = var.Lab_Shutdown ? 1 : 0
   resource_group_name   = azurerm_resource_group.Core.name
   location              = azurerm_resource_group.Core.location
   name                  = "testvmhub"
@@ -172,5 +195,89 @@ resource "azurerm_windows_virtual_machine" "testvmhub" {
     sku       = "2022-datacenter-azure-edition-core"
     version   = "latest"
   }
+
+}
+
+resource "azurerm_virtual_machine_extension" "allow_icmp" {
+  count = var.Lab_Shutdown ? 1 : 0
+  name                 = "allow-icmp"
+  virtual_machine_id   = azurerm_windows_virtual_machine.testvmhub[0].id
+  publisher            = "Microsoft.Compute"
+  type                 = "CustomScriptExtension"
+  type_handler_version = "1.10"
+
+  protected_settings = jsonencode({
+    commandToExecute = "powershell.exe -ExecutionPolicy Bypass -Command \"New-NetFirewallRule -DisplayName 'Allow ICMPv4 Echo' -Protocol ICMPv4 -IcmpType 8 -Direction Inbound -Action Allow\""
+  })
+}
+
+resource "azurerm_network_security_group" "allowping" {
+  location            = azurerm_resource_group.Core.location
+  name                = "testgroup"
+  resource_group_name = azurerm_resource_group.Core.name
+  security_rule = [
+    {
+      access                                     = "Allow"
+      description                                = null
+      destination_address_prefix                 = "*"
+      destination_address_prefixes               = []
+      destination_application_security_group_ids = []
+      destination_port_range                     = "*"
+      destination_port_ranges                    = []
+      direction                                  = "Inbound"
+      name                                       = "allowping"
+      priority                                   = 100
+      protocol                                   = "Icmp"
+      source_address_prefix                      = "*"
+      source_address_prefixes                    = []
+      source_application_security_group_ids      = []
+      source_port_range                          = "*"
+      source_port_ranges                         = []
+    }
+  ]
+}
+
+
+resource "azurerm_public_ip" "res-14" {
+  allocation_method   = "Static"
+  location            = "southafricanorth"
+  name                = "Hub_VNG"
+  resource_group_name = azurerm_resource_group.Core.name
+  zones               = ["1", "2", "3"]
+}
+resource "azurerm_virtual_network_gateway" "res-15" {
+  count = var.Lab_Shutdown ? 1 : 0
+  location            = "southafricanorth"
+  name                = "Hub_VNG"
+  resource_group_name = azurerm_resource_group.Core.name
+  sku                 = "Basic"
+  type                = "Vpn"
+  ip_configuration {
+    name                 = "default"
+    public_ip_address_id = azurerm_public_ip.res-14.id
+    subnet_id            = one([for subnet in azurerm_virtual_network.hubvnet.subnet : subnet.id if subnet.name == "GatewaySubnet"])
+  }
+}
+
+
+resource "azurerm_virtual_network_gateway_connection" "res-6" {
+  count = var.Lab_Shutdown ? 1 : 0
+  connection_mode            = "ResponderOnly"
+  dpd_timeout_seconds        = 45
+  local_network_gateway_id   = azurerm_local_network_gateway.res-7.id
+  location                   = "southafricanorth"
+  name                       = "hub-to-home"
+  resource_group_name        = azurerm_resource_group.Core.name
+  type                       = "IPsec"
+  virtual_network_gateway_id = azurerm_virtual_network_gateway.res-15[0].id
+  shared_key = var.ipsecpsk
+  
+}
+resource "azurerm_local_network_gateway" "res-7" {
+  address_space       = ["192.168.50.0/24"]
+  gateway_address     = "92.40.173.220"
+  location            = "southafricanorth"
+  name                = "homegateway"
+  resource_group_name = azurerm_resource_group.Core.name
 
 }
