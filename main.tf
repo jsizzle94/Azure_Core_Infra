@@ -281,3 +281,33 @@ resource "azurerm_local_network_gateway" "res-7" {
   resource_group_name = azurerm_resource_group.Core.name
 
 }
+
+module "keyvault" {
+    source = "./Modules/keyvault"
+    location = azurerm_resource_group.Core.location
+    rgname = azurerm_resource_group.Core.name
+    tenant_id = var.tenant_id
+    kvname = "jamieskv"
+}
+
+module "azuread_service_principal" {
+ source = "./Modules/service-principal"
+
+}
+
+module "azurerm_role_assignment" {
+    source = "./Modules/role-assignment"
+    principal_id = module.azuread_service_principal.serviceprincipalinfo.id
+    role_definition_name = var.role_definition_name
+    scope = module.keyvault.keyvaultid
+  
+}
+
+output "all_module_outputs" {
+    value = {
+    role_assignment = module.azurerm_role_assignment
+    keyvault = module.keyvault
+    service-principal = module.azuread_service_principal
+    }
+  
+}
