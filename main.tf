@@ -120,7 +120,7 @@ resource "azurerm_network_interface" "testvmnic" {
 
 #### Test VM on spoke workload network to test connectivity to hub and other networks. 
 resource "azurerm_windows_virtual_machine" "testvm" {
-  count = var.Lab_Shutdown ? 1 : 0
+  count = var.Lab_Shutdown ? 0 : 1
   resource_group_name   = azurerm_resource_group.Core.name
   location              = azurerm_resource_group.Core.location
   name                  = "testvm"
@@ -146,7 +146,7 @@ resource "azurerm_windows_virtual_machine" "testvm" {
 }
 
 resource "azurerm_virtual_machine_extension" "allow_icmp2" {
-  count = var.Lab_Shutdown ? 1 : 0
+  count = var.Lab_Shutdown ? 0 : 1
   name                 = "allow-icmp"
   virtual_machine_id   = azurerm_windows_virtual_machine.testvm[0].id
   publisher            = "Microsoft.Compute"
@@ -174,7 +174,7 @@ resource "azurerm_network_interface" "testvmnichub" {
 
 #### Test VM on hub network to test connectivity from hub to spoke network 
 resource "azurerm_windows_virtual_machine" "testvmhub" {
-  count = var.Lab_Shutdown ? 1 : 0
+  count = var.Lab_Shutdown ? 0 : 1
   resource_group_name   = azurerm_resource_group.Core.name
   location              = azurerm_resource_group.Core.location
   name                  = "testvmhub"
@@ -199,7 +199,7 @@ resource "azurerm_windows_virtual_machine" "testvmhub" {
 }
 
 resource "azurerm_virtual_machine_extension" "allow_icmp" {
-  count = var.Lab_Shutdown ? 1 : 0
+  count = var.Lab_Shutdown ? 0 : 1
   name                 = "allow-icmp"
   virtual_machine_id   = azurerm_windows_virtual_machine.testvmhub[0].id
   publisher            = "Microsoft.Compute"
@@ -246,7 +246,7 @@ resource "azurerm_public_ip" "res-14" {
   zones               = ["1", "2", "3"]
 }
 resource "azurerm_virtual_network_gateway" "res-15" {
-  count = var.Lab_Shutdown ? 1 : 0
+  count = var.Lab_Shutdown ? 0 : 1
   location            = "southafricanorth"
   name                = "Hub_VNG"
   resource_group_name = azurerm_resource_group.Core.name
@@ -261,7 +261,7 @@ resource "azurerm_virtual_network_gateway" "res-15" {
 
 
 resource "azurerm_virtual_network_gateway_connection" "res-6" {
-  count = var.Lab_Shutdown ? 1 : 0
+  count = var.Lab_Shutdown ? 0 : 1
   connection_mode            = "ResponderOnly"
   dpd_timeout_seconds        = 45
   local_network_gateway_id   = azurerm_local_network_gateway.res-7.id
