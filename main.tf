@@ -22,6 +22,23 @@ resource "azurerm_virtual_network" "hubvnet" {
     name             = "snet-shared-services"
     address_prefixes = ["10.0.2.0/24"]
   }
+  subnet {
+    name             = "snet-dns-resolver"
+    address_prefixes = ["10.0.3.0/24"]
+
+    delegation {
+      name = "dns-resolver"
+
+      service_delegation {
+        name = "Microsoft.Network/dnsResolvers"
+
+        actions = [
+          "Microsoft.Network/virtualNetworks/subnets/join/action"
+        ]
+
+      }
+    }
+  }
 
 }
 
@@ -120,7 +137,7 @@ resource "azurerm_network_interface" "testvmnic" {
 
 #### Test VM on spoke workload network to test connectivity to hub and other networks. 
 resource "azurerm_windows_virtual_machine" "testvm" {
-  count = var.Lab_Shutdown ? 0 : 1
+  count                 = var.Lab_Shutdown ? 0 : 1
   resource_group_name   = azurerm_resource_group.Core.name
   location              = azurerm_resource_group.Core.location
   name                  = "testvm"
@@ -146,7 +163,7 @@ resource "azurerm_windows_virtual_machine" "testvm" {
 }
 
 resource "azurerm_virtual_machine_extension" "allow_icmp2" {
-  count = var.Lab_Shutdown ? 0 : 1
+  count                = var.Lab_Shutdown ? 0 : 1
   name                 = "allow-icmp"
   virtual_machine_id   = azurerm_windows_virtual_machine.testvm[0].id
   publisher            = "Microsoft.Compute"
@@ -174,7 +191,7 @@ resource "azurerm_network_interface" "testvmnichub" {
 
 #### Test VM on hub network to test connectivity from hub to spoke network 
 resource "azurerm_windows_virtual_machine" "testvmhub" {
-  count = var.Lab_Shutdown ? 0 : 1
+  count                 = var.Lab_Shutdown ? 0 : 1
   resource_group_name   = azurerm_resource_group.Core.name
   location              = azurerm_resource_group.Core.location
   name                  = "testvmhub"
@@ -198,14 +215,14 @@ resource "azurerm_windows_virtual_machine" "testvmhub" {
   dynamic "identity" {
     for_each = var.sptype == "managed" ? [1] : []
     content {
-    type = "UserAssigned"
-    identity_ids = [module.azuread_service_principal.serviceprincipalinfo.Managed_SP_ResoureID]
+      type         = "UserAssigned"
+      identity_ids = [module.azuread_service_principal.serviceprincipalinfo.Managed_SP_ResoureID]
     }
   }
 }
 
 resource "azurerm_virtual_machine_extension" "allow_icmp" {
-  count = var.Lab_Shutdown ? 0 : 1
+  count                = var.Lab_Shutdown ? 0 : 1
   name                 = "allow-icmp"
   virtual_machine_id   = azurerm_windows_virtual_machine.testvmhub[0].id
   publisher            = "Microsoft.Compute"
@@ -252,7 +269,7 @@ resource "azurerm_public_ip" "res-14" {
   zones               = ["1", "2", "3"]
 }
 resource "azurerm_virtual_network_gateway" "res-15" {
-  count = var.Lab_Shutdown ? 0 : 1
+  count               = var.Lab_Shutdown ? 0 : 1
   location            = "southafricanorth"
   name                = "Hub_VNG"
   resource_group_name = azurerm_resource_group.Core.name
@@ -267,7 +284,7 @@ resource "azurerm_virtual_network_gateway" "res-15" {
 
 
 resource "azurerm_virtual_network_gateway_connection" "res-6" {
-  count = var.Lab_Shutdown ? 0 : 1
+  count                      = var.Lab_Shutdown ? 0 : 1
   connection_mode            = "ResponderOnly"
   dpd_timeout_seconds        = 45
   local_network_gateway_id   = azurerm_local_network_gateway.res-7.id
@@ -276,8 +293,8 @@ resource "azurerm_virtual_network_gateway_connection" "res-6" {
   resource_group_name        = azurerm_resource_group.Core.name
   type                       = "IPsec"
   virtual_network_gateway_id = azurerm_virtual_network_gateway.res-15[0].id
-  shared_key = var.ipsecpsk
-  
+  shared_key                 = var.ipsecpsk
+
 }
 resource "azurerm_local_network_gateway" "res-7" {
   address_space       = ["192.168.50.0/24"]
@@ -288,36 +305,62 @@ resource "azurerm_local_network_gateway" "res-7" {
 
 }
 
+resource "azurerm_private_dns_zone" "myprivate" {
+  resource_group_name = azurerm_resource_group.Core.name
+  name                = "privatelink.vaultcore.azure.net"
+
+}
+
+
+resource "azurerm_private_dns_resolver" "privatednsresolver" {
+  resource_group_name = azurerm_resource_group.Core.name
+  name                = "private-resolver"
+  virtual_network_id  = azurerm_virtual_network.hubvnet.id
+  location            = azurerm_resource_group.Core.location
+}
+
+resource "azurerm_private_dns_resolver_inbound_endpoint" "inbound" {
+  location                = azurerm_resource_group.Core.location
+  name                    = "dns-resolver"
+  private_dns_resolver_id = azurerm_private_dns_resolver.privatednsresolver.id
+  ip_configurations {
+    subnet_id = one([for subnet in azurerm_virtual_network.hubvnet.subnet : subnet.id if subnet.name == "snet-dns-resolver"])
+
+
+
+  }
+}
+
 module "keyvault" {
-    source = "./Modules/keyvault"
-    location = azurerm_resource_group.Core.location
-    rgname = azurerm_resource_group.Core.name
-    tenant_id = var.tenant_id
-    kvname = "jamieskv"
+  source    = "./Modules/keyvault"
+  location  = azurerm_resource_group.Core.location
+  rgname    = azurerm_resource_group.Core.name
+  tenant_id = var.tenant_id
+  kvname    = "jamieskv"
 }
 
 module "azuread_service_principal" {
- source = "./Modules/service-principal"
- rgname = azurerm_resource_group.Core.name
- location = azurerm_resource_group.Core.location
- spname = "mySP"
- sptype = var.sptype
+  source   = "./Modules/service-principal"
+  rgname   = azurerm_resource_group.Core.name
+  location = azurerm_resource_group.Core.location
+  spname   = "mySP"
+  sptype   = var.sptype
 
 }
 
 module "azurerm_role_assignment" {
-    source = "./Modules/role-assignment"
-    principal_id = var.sptype == "serviceprincipal" ? module.azuread_service_principal.serviceprincipalinfo.SP_ID : module.azuread_service_principal.serviceprincipalinfo.Managed_SP_ID
-    role_definition_name = var.role_definition_name
-    scope = module.keyvault.keyvaultid
-  
+  source               = "./Modules/role-assignment"
+  principal_id         = var.sptype == "serviceprincipal" ? module.azuread_service_principal.serviceprincipalinfo.SP_ID : module.azuread_service_principal.serviceprincipalinfo.Managed_SP_ID
+  role_definition_name = var.role_definition_name
+  scope                = module.keyvault.keyvaultid
+
 }
 
 output "all_module_outputs" {
-    value = {
-    role_assignment = module.azurerm_role_assignment
-    keyvault = module.keyvault
+  value = {
+    role_assignment   = module.azurerm_role_assignment
+    keyvault          = module.keyvault
     service-principal = module.azuread_service_principal
-    }
-  
+  }
+
 }

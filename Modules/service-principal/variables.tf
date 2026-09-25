@@ -16,6 +16,6 @@ variable "sptype" {
   
   validation {
     condition = contains(["serviceprincipal", "managed"], var.sptype)
-    error_message = "Must enter sp type"
+    error_message = "SP Type can only be 'serviceprincipal or managed"
   }
 }

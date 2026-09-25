@@ -9,7 +9,7 @@ terraform {
       version = "~> 3.1.0"
     }
     random = {
-      source = "hashicorp/random"
+      source  = "hashicorp/random"
       version = "~> 3.0"
     }
   }
@@ -21,6 +21,6 @@ provider "azuread" {
 
 provider "azurerm" {
   features {}
-  
+
 }
 

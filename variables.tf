@@ -3,29 +3,29 @@ variable "location" {
   type    = string
 }
 variable "ipsecpsk" {
- type = string
-  
+  type = string
+
 }
 
 variable "Lab_Shutdown" {
-    description = "Destory expensive lab resources when true"
-    type = bool
+  description = "Destory expensive lab resources when true"
+  type        = bool
 }
 
 variable "tenant_id" {
-    type = string
-    description = "tenant ID of which keyvault will be deployed in"
-  
+  type        = string
+  description = "tenant ID of which keyvault will be deployed in"
+
 }
 
 
 variable "role_definition_name" {
-    type = string
-  
+  type = string
+
 }
 
 variable "sptype" {
-    type = string
-    default = "serviceprincipal"
-  
+  type    = string
+  default = "serviceprincipal"
+
 }
