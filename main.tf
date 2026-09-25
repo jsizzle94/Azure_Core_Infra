@@ -195,7 +195,13 @@ resource "azurerm_windows_virtual_machine" "testvmhub" {
     sku       = "2022-datacenter-azure-edition-core"
     version   = "latest"
   }
-
+  dynamic "identity" {
+    for_each = var.sptype == "managed" ? [1] : []
+    content {
+    type = "UserAssigned"
+    identity_ids = [module.azuread_service_principal.serviceprincipalinfo.Managed_SP_ResoureID]
+    }
+  }
 }
 
 resource "azurerm_virtual_machine_extension" "allow_icmp" {
@@ -292,12 +298,16 @@ module "keyvault" {
 
 module "azuread_service_principal" {
  source = "./Modules/service-principal"
+ rgname = azurerm_resource_group.Core.name
+ location = azurerm_resource_group.Core.location
+ spname = "mySP"
+ sptype = var.sptype
 
 }
 
 module "azurerm_role_assignment" {
     source = "./Modules/role-assignment"
-    principal_id = module.azuread_service_principal.serviceprincipalinfo.id
+    principal_id = var.sptype == "serviceprincipal" ? module.azuread_service_principal.serviceprincipalinfo.SP_ID : module.azuread_service_principal.serviceprincipalinfo.Managed_SP_ID
     role_definition_name = var.role_definition_name
     scope = module.keyvault.keyvaultid
   

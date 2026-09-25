@@ -23,3 +23,9 @@ variable "role_definition_name" {
     type = string
   
 }
+
+variable "sptype" {
+    type = string
+    default = "serviceprincipal"
+  
+}
