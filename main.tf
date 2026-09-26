@@ -325,12 +325,37 @@ resource "azurerm_private_dns_resolver_inbound_endpoint" "inbound" {
   private_dns_resolver_id = azurerm_private_dns_resolver.privatednsresolver.id
   ip_configurations {
     subnet_id = one([for subnet in azurerm_virtual_network.hubvnet.subnet : subnet.id if subnet.name == "snet-dns-resolver"])
-
-
-
   }
 }
 
+resource "azurerm_private_endpoint" "res-0" {
+  custom_network_interface_name = "KeyVaultPrivateEndpoint-nic"
+  location                      = azurerm_resource_group.Core.location
+  name                          = "KeyVaultPrivateEndpoint"
+  resource_group_name           = azurerm_resource_group.Core.name
+  subnet_id                     = "/subscriptions/9fc3b8bd-ef76-4f72-92eb-42ed00880f87/resourceGroups/core-rg/providers/Microsoft.Network/virtualNetworks/hubvnet/subnets/snet-shared-services"
+  private_dns_zone_group {
+    name                 = "default"
+    private_dns_zone_ids = ["/subscriptions/9fc3b8bd-ef76-4f72-92eb-42ed00880f87/resourceGroups/core-rg/providers/Microsoft.Network/privateDnsZones/privatelink.vaultcore.azure.net"]
+  }
+  private_service_connection {
+    is_manual_connection           = false
+    name                           = "KeyVaultPrivateEndpoint"
+    private_connection_resource_id = "/subscriptions/9fc3b8bd-ef76-4f72-92eb-42ed00880f87/resourceGroups/core-rg/providers/Microsoft.KeyVault/vaults/jamieskv-7a8"
+    subresource_names              = ["vault"]
+  }
+}
+
+resource "azurerm_network_interface" "res-0" {
+  location            = azurerm_resource_group.Core.location
+  name                = "KeyVaultPrivateEndpoint-nic"
+  resource_group_name = azurerm_resource_group.Core.name
+  ip_configuration {
+    name                          = "privateEndpointIpConfig.82da9878-eea9-43cf-bcb2-b980815f1c13"
+    private_ip_address_allocation = "Dynamic"
+    subnet_id                     = one([for subnet in azurerm_virtual_network.hubvnet.subnet : subnet.id if subnet.name == "snet-shared-services"])
+  }
+}
 module "keyvault" {
   source    = "./Modules/keyvault"
   location  = azurerm_resource_group.Core.location
